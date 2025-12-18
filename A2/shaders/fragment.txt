@@ -1,12 +1,47 @@
 #version 330 core
 
+struct PointLight {
+    vec3 position;
+    vec3 color;
+    float strength;
+}
+
 in vec2 fragmentTexCoord;
+in vec3 fragmentPosition;
+in vec3 fragmentNormal;
 
 out vec4 color;
 
 uniform sampler2D imageTexture;
+uniform PointLight Light;
+
+vec3 calcualtePointLight();
+
+vec3 calcualtePointLight(PointLight Light, vec3 fragmentPosition, vec3 fragmentNormal);
 
 void main()
 {
-    color = texture(imageTexture, fragmentTexCoord);
+    vec3 temp = vec3(0.0);
+
+    temp += calcualtePointLight();
+
+    color = vec4(temp, 1.0);
+}
+
+vec3 calcualtePointLight(PointLight light, vec3 fragmentPosition, vec3 fragmentNormal) {
+
+    vec3 result = vec3(0.0);
+    vec3 baseTexture = texture(imageTexture, fragmentTexCoord).rgb;
+
+    vec3 fragToLight = light.position - fragmentPosition
+    float distance = length(fragToLight);
+    fragToLight = normalize(fragToLight);
+
+    // ambient lighting
+    result += 0.2 * baseTexture;
+
+    // diffuse lighting
+    result += light.color * light.strength * max(0.0, dot(fragmentNormal, fragToLight)) / (distance *distance);
+
+    return result;
 }

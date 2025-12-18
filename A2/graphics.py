@@ -9,6 +9,12 @@ class Cube:
         self.position = np.array(position, dtype=np.float32)
         self.eulers = np.array(eulers, dtype=np.float32)
 
+class Light:
+    def __init__(self, position, color, strength):
+        self.position = np.array(position, dtype=np.float32)
+        self.color = np.array(color, dtype=np.float32)
+        self.strength = strength
+        
 class App:
 
     def __init__(self):
@@ -93,7 +99,6 @@ class App:
         self.quit()
     
     def quit(self):
-        self.cube.destroy()
         self.cubeMesh.destroy()
         self.woodTexture.destroy()
         glDeleteProgram(self.shader)
@@ -165,6 +170,8 @@ class CubeMesh:
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 32, ctypes.c_void_p(0))
         glEnableVertexAttribArray(1)
         glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 32, ctypes.c_void_p(12))
+        glEnableVertexAttribArray(1)
+        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 32, ctypes.c_void_p(20))
 
     def destroy(self):
         glDeleteVertexArrays(1, (self.vao,))
