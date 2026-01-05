@@ -4,7 +4,7 @@ struct PointLight {
     vec3 position;
     vec3 color;
     float strength;
-}
+}; 
 
 in vec2 fragmentTexCoord;
 in vec3 fragmentPosition;
@@ -14,34 +14,48 @@ out vec4 color;
 
 uniform sampler2D imageTexture;
 uniform PointLight Light;
+uniform vec3 viewPos; 
 
-vec3 calcualtePointLight();
+// NEW UNIFORMS
+uniform int useTexture;    // 1 = Use Texture, 0 = Use Solid Color
+uniform vec3 objectColor;  // The solid color to use if useTexture is 0
 
-vec3 calcualtePointLight(PointLight Light, vec3 fragmentPosition, vec3 fragmentNormal);
+vec3 calculatePointLight(PointLight light, vec3 fragPos, vec3 fragNorm, vec3 viewPos);
 
 void main()
 {
-    vec3 temp = vec3(0.0);
-
-    temp += calcualtePointLight();
-
+    vec3 temp = calculatePointLight(Light, fragmentPosition, normalize(fragmentNormal), viewPos);
     color = vec4(temp, 1.0);
 }
 
-vec3 calcualtePointLight(PointLight light, vec3 fragmentPosition, vec3 fragmentNormal) {
+vec3 calculatePointLight(PointLight light, vec3 fragPos, vec3 fragNorm, vec3 viewPos) {
+    
+    // --- SWITCH LOGIC HERE ---
+    vec3 baseTexture;
+    if (useTexture == 1) {
+        baseTexture = texture(imageTexture, fragmentTexCoord).rgb;
+    } else {
+        baseTexture = objectColor;
+    }
+    // -------------------------
+    
+    // 1. Ambient
+    vec3 ambient = 0.1 * baseTexture; 
 
-    vec3 result = vec3(0.0);
-    vec3 baseTexture = texture(imageTexture, fragmentTexCoord).rgb;
+    // 2. Diffuse
+    vec3 lightDir = normalize(light.position - fragPos);
+    float diff = max(dot(fragNorm, lightDir), 0.0);
+    vec3 diffuse = diff * light.color * light.strength * baseTexture;
 
-    vec3 fragToLight = light.position - fragmentPosition
-    float distance = length(fragToLight);
-    fragToLight = normalize(fragToLight);
+    // 3. Specular
+    float specularStrength = 0.5;
+    vec3 viewDir = normalize(viewPos - fragPos);
+    vec3 reflectDir = reflect(-lightDir, fragNorm); 
+    float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32);
+    vec3 specular = specularStrength * spec * light.color;  
 
-    // ambient lighting
-    result += 0.2 * baseTexture;
+    float distance = length(light.position - fragPos);
+    float attenuation = 1.0 / (1.0 + 0.1 * distance + 0.01 * distance * distance);
 
-    // diffuse lighting
-    result += light.color * light.strength * max(0.0, dot(fragmentNormal, fragToLight)) / (distance *distance);
-
-    return result;
+    return (ambient + diffuse + specular) * attenuation;
 }

@@ -45,6 +45,21 @@ class App:
 
         self.modelMatrixLocation = glGetUniformLocation(self.shader, "model")
 
+        # Create a light
+        self.light = Light(position=[2, 2, 2], color=[1, 1, 1], strength=1.0)
+        
+        # Get Uniform Locations
+        self.modelMatrixLocation = glGetUniformLocation(self.shader, "model")
+        self.viewPosLocation = glGetUniformLocation(self.shader, "viewPos")
+
+        self.useTextureLoc = glGetUniformLocation(self.shader, "useTexture")
+        self.objectColorLoc = glGetUniformLocation(self.shader, "objectColor")
+        
+        # Light Uniform Locations (Structs must be located individually)
+        self.lightPosLoc = glGetUniformLocation(self.shader, "Light.position")
+        self.lightColorLoc = glGetUniformLocation(self.shader, "Light.color")
+        self.lightStrengthLoc = glGetUniformLocation(self.shader, "Light.strength")
+
         self.mainLoop()
     
     def createShader(self, vertexFilepath, fragmentFilepath):
@@ -60,43 +75,76 @@ class App:
         return shader
 
     def mainLoop(self):
-        running = True
-        while running:
-            for event in pg.event.get():
-                if event.type == pg.QUIT:
-                    running = False
-            
-            self.cube.eulers[2] += 0.2
-            if (self.cube.eulers[2] >= 360):
-                self.cube.eulers[2] -= 360
+            running = True
+            while running:
+                # --- 1. RESTORED EVENT HANDLING ---
+                for event in pg.event.get():
+                    if event.type == pg.QUIT:
+                        running = False
+                
+                # --- 2. RESTORED ROTATION LOGIC ---
+                self.cube.eulers[2] += 0.2
+                if (self.cube.eulers[2] >= 360):
+                    self.cube.eulers[2] -= 360
 
+                # --- 3. RENDERING ---
+                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+                glUseProgram(self.shader)
 
-
-            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
-
-            glUseProgram(self.shader)
-            self.woodTexture.use()
-
-            model_transform = pyrr.matrix44.create_identity(dtype=np.float32)
-            model_transform = pyrr.matrix44.multiply(
-                m1 = model_transform,
-                m2 = pyrr.matrix44.create_from_eulers(
-                eulers = np.radians(self.cube.eulers), 
-                dtype = np.float32)
-            )
-            model_transform = pyrr.matrix44.multiply(
-                m1 = model_transform,
-                m2 = pyrr.matrix44.create_from_translation(
-                    vec = self.cube.position, dtype = np.float32
+                # Common Uniforms
+                glUniform3f(self.viewPosLocation, 0.0, 0.0, 0.0) 
+                glUniform3fv(self.lightPosLoc, 1, self.light.position)
+                glUniform3fv(self.lightColorLoc, 1, self.light.color)
+                glUniform1f(self.lightStrengthLoc, self.light.strength)
+                
+                # Update Model Matrix
+                model_transform = pyrr.matrix44.create_identity(dtype=np.float32)
+                model_transform = pyrr.matrix44.multiply(
+                    m1=model_transform, 
+                    m2=pyrr.matrix44.create_from_eulers(eulers=np.radians(self.cube.eulers), dtype=np.float32)
                 )
-            )
-            glUniformMatrix4fv(self.modelMatrixLocation, 1, GL_FALSE, model_transform)
-            glBindVertexArray(self.cubeMesh.vao)
-            glDrawArrays(GL_TRIANGLES, 0 , self.cubeMesh.vertexCount)            
-            pg.display.flip()
+                model_transform = pyrr.matrix44.multiply(
+                    m1=model_transform, 
+                    m2=pyrr.matrix44.create_from_translation(vec=self.cube.position, dtype=np.float32)
+                )
+                glUniformMatrix4fv(self.modelMatrixLocation, 1, GL_FALSE, model_transform)
 
-            self.clock.tick(60)
-        self.quit()
+                glBindVertexArray(self.cubeMesh.vao)
+
+                # ==========================================================
+                # PASS 1: SOLID RED CUBE
+                # ==========================================================
+                glEnable(GL_POLYGON_OFFSET_FILL)
+                glPolygonOffset(1.0, 1.0) 
+                glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
+                
+                # Use Solid Color (Red)
+                glUniform1i(self.useTextureLoc, 0) 
+                glUniform3f(self.objectColorLoc, 1.0, 0.0, 0.0) 
+                
+                glDrawArrays(GL_TRIANGLES, 0, self.cubeMesh.vertexCount)
+                glDisable(GL_POLYGON_OFFSET_FILL)
+
+                # ==========================================================
+                # PASS 2: BLACK WIREFRAME
+                # ==========================================================
+                glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
+                
+                # Use Solid Color (Black)
+                glUniform1i(self.useTextureLoc, 0)
+                glUniform3f(self.objectColorLoc, 0.0, 0.0, 0.0) 
+                
+                glDrawArrays(GL_TRIANGLES, 0, self.cubeMesh.vertexCount)
+
+                # ==========================================================
+                # RESET & FLIP
+                # ==========================================================
+                glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
+
+                pg.display.flip()
+                self.clock.tick(60)
+                
+            self.quit()
     
     def quit(self):
         self.cubeMesh.destroy()
@@ -159,7 +207,7 @@ class CubeMesh:
 
 
         self.vertices = np.array(self.vertices, dtype = np.float32)
-        self.vertexCount = len(self.vertices) // 5
+        self.vertexCount = len(self.vertices) // 8
 
         self.vao = glGenVertexArrays(1)
         glBindVertexArray(self.vao)
@@ -170,7 +218,7 @@ class CubeMesh:
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 32, ctypes.c_void_p(0))
         glEnableVertexAttribArray(1)
         glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 32, ctypes.c_void_p(12))
-        glEnableVertexAttribArray(1)
+        glEnableVertexAttribArray(2)
         glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 32, ctypes.c_void_p(20))
 
     def destroy(self):
